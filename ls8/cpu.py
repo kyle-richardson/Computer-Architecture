@@ -11,17 +11,19 @@ MUL = 0b10100010
 JMP = 0b01010100
 PUSH = 0b01000101
 POP = 0b01000110
+CALL = 0b01010000
+RET = 0b00010001
 
 
 class CPU:
 
     def __init__(self):
         self.pc = 0
+        self.mutated_pc = False
         self.ram = {}
         self.reg = [0] * 8
         self.reg[7] = 0xF4
         self.ram[self.reg[7]] = 0
-        self.num_args = 0
         self.branchtable = {}
         self.branchtable[ADD] = self.handle_add
         self.branchtable[SUB] = self.handle_sub
@@ -31,6 +33,8 @@ class CPU:
         self.branchtable[JMP] = self.handle_jmp
         self.branchtable[PUSH] = self.handle_push
         self.branchtable[POP] = self.handle_pop
+        self.branchtable[CALL] = self.handle_call
+        self.branchtable[RET] = self.handle_ret
 
     def load(self):
         """Load a program into memory."""
@@ -49,48 +53,64 @@ class CPU:
     def handle_push(self, a):
         self.reg[7] -= 1
         self.ram[self.reg[7]] = self.reg[a]
-        self.increment(2)
 
     def handle_pop(self, a):
         self.reg[a] = self.ram[self.reg[7]]
         self.reg[7] += 1
-        self.increment(2)
 
     def handle_add(self, a, b):
         self.reg[a] += self.reg[b]
-        self.increment(3)
 
     def handle_sub(self, a, b):
         self.reg[a] -= self.reg[b]
-        self.increment(3)
 
     def handle_ldi(self, a, b):
         self.reg[a] = b
-        self.increment(3)
 
     def handle_prn(self, a):
         print(self.reg[a])
-        self.increment(2)
 
     def handle_mul(self, a, b):
         self.reg[a] *= self.reg[b]
-        self.increment(3)
 
     def handle_jmp(self, a):
         self.pc = self.reg[a]
 
+        # prevent auto pc increment
+        self.mutated_pc = True
+
+    def handle_call(self, a):
+        # push next instruction on stack to return to
+        self.reg[7] -= 1
+        self.ram[self.reg[7]] = self.pc+2
+
+        # change pc to called location
+        self.pc = self.reg[a]
+
+        # prevent auto pc increment
+        self.mutated_pc = True
+
+    def handle_ret(self):
+        self.pc = self.ram[self.reg[7]]
+        self.reg[7] += 1
+
+        # prevent auto pc increment
+        self.mutated_pc = True
+
     def alu(self, op):
-        """ALU operations."""
 
         if op in self.branchtable:
-            self.num_args = op >> 6
-            if self.num_args == 1:
+            num_args = op >> 6
+            if num_args == 1:
                 self.branchtable[op](self.ram_read(self.pc+1))
-            elif self.num_args == 2:
+            elif num_args == 2:
                 self.branchtable[op](self.ram_read(
                     self.pc+1), self.ram_read(self.pc+2))
             else:
                 self.branchtable[op]()
+            if not self.mutated_pc:
+                self.increment(num_args + 1)
+            self.mutated_pc = False
 
         else:
             raise Exception("Unsupported ALU operation")
