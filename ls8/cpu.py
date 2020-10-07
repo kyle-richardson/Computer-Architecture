@@ -8,17 +8,29 @@ PRN = 0b01000111
 ADD = 0b10100000
 SUB = 0b10100001
 MUL = 0b10100010
+JMP = 0b01010100
+PUSH = 0b01000101
+POP = 0b01000110
 
 
 class CPU:
-    """Main CPU class."""
 
     def __init__(self):
-        """Construct a new CPU."""
-        pass
         self.pc = 0
         self.ram = {}
         self.reg = [0] * 8
+        self.reg[7] = 0xF4
+        self.ram[self.reg[7]] = 0
+        self.num_args = 0
+        self.branchtable = {}
+        self.branchtable[ADD] = self.handle_add
+        self.branchtable[SUB] = self.handle_sub
+        self.branchtable[MUL] = self.handle_mul
+        self.branchtable[PRN] = self.handle_prn
+        self.branchtable[LDI] = self.handle_ldi
+        self.branchtable[JMP] = self.handle_jmp
+        self.branchtable[PUSH] = self.handle_push
+        self.branchtable[POP] = self.handle_pop
 
     def load(self):
         """Load a program into memory."""
@@ -34,40 +46,51 @@ class CPU:
                     self.ram_write(address, int(line, 2))
                     address += 1
 
-        # For now, we've just hardcoded a program:
+    def handle_push(self, a):
+        self.reg[7] -= 1
+        self.ram[self.reg[7]] = self.reg[a]
+        self.increment(2)
 
-        # program = [
-        #     # From print8.ls8
-        #     LDI,  # LDI R0,8
-        #     0b00000000,
-        #     0b00001000,
-        #     PRN,  # PRN R0
-        #     0b00000000,
-        #     0b00000001,  # HLT
-        # ]
+    def handle_pop(self, a):
+        self.reg[a] = self.ram[self.reg[7]]
+        self.reg[7] += 1
+        self.increment(2)
 
-        # for instruction in program:
-        #     self.ram[address] = instruction
-        #     address += 1
+    def handle_add(self, a, b):
+        self.reg[a] += self.reg[b]
+        self.increment(3)
 
-    def alu(self, op, reg_a, reg_b):
+    def handle_sub(self, a, b):
+        self.reg[a] -= self.reg[b]
+        self.increment(3)
+
+    def handle_ldi(self, a, b):
+        self.reg[a] = b
+        self.increment(3)
+
+    def handle_prn(self, a):
+        print(self.reg[a])
+        self.increment(2)
+
+    def handle_mul(self, a, b):
+        self.reg[a] *= self.reg[b]
+        self.increment(3)
+
+    def handle_jmp(self, a):
+        self.pc = self.reg[a]
+
+    def alu(self, op):
         """ALU operations."""
 
-        if op == ADD:
-            self.reg[reg_a] += self.reg[reg_b]
-            self.increment(3)
-        elif op == SUB:
-            self.reg[reg_a] -= self.reg[reg_b]
-            self.increment(3)
-        elif op == LDI:
-            self.reg[reg_a] = reg_b
-            self.increment(3)
-        elif op == PRN:
-            print(self.reg[reg_a])
-            self.increment(2)
-        elif op == MUL:
-            self.reg[reg_a] *= self.reg[reg_b]
-            self.increment(3)
+        if op in self.branchtable:
+            self.num_args = op >> 6
+            if self.num_args == 1:
+                self.branchtable[op](self.ram_read(self.pc+1))
+            elif self.num_args == 2:
+                self.branchtable[op](self.ram_read(
+                    self.pc+1), self.ram_read(self.pc+2))
+            else:
+                self.branchtable[op]()
 
         else:
             raise Exception("Unsupported ALU operation")
@@ -93,8 +116,6 @@ class CPU:
         for i in range(8):
             print(" %02X" % self.reg[i], end='')
 
-        print()
-
     def ram_read(self, pc):
         return self.ram[pc]
 
@@ -104,7 +125,4 @@ class CPU:
     def run(self):
         while self.ram_read(self.pc) != HLT:
             command = self.ram_read(self.pc)
-            operand_a = self.ram_read(self.pc+1)
-            operand_b = self.ram_read(self.pc+2)
-            # print(f'command: {command},opa: {operand_a}, opb: {operand_b}')
-            self.alu(command, operand_a, operand_b)
+            self.alu(command)
