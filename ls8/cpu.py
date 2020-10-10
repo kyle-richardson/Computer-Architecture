@@ -21,6 +21,9 @@ class CPU:
         self.pc = 0
         self.mutated_pc = False
         self.ram = {}
+        self.E = 0
+        self.L = 0
+        self.G = 0
         self.reg = [0] * 8
         self.reg[7] = 0xF4
         self.ram[self.reg[7]] = 0
@@ -75,6 +78,31 @@ class CPU:
 
     def handle_jmp(self, a):
         self.pc = self.reg[a]
+        # prevent auto pc increment
+        self.mutated_pc = True
+
+    def handle_cmp(self, a, b):
+        first = self.reg[a]
+        second = self.reg[b]
+        self.E = 0
+        self.G = 0
+        self.L = 0
+        if first == second:
+            self.E = 1
+        elif first > second:
+            self.G = 1
+        elif first < second:
+            self.L = 1
+
+    def handle_jeq(self, a):
+        if self.E == 1:
+            self.handle_jmp(a)
+            self.mutated_pc = True
+
+    def handle_jne(self, a):
+        if self.E == 0:
+            self.handle_jmp(a)
+            self.mutated_pc = True
 
         # prevent auto pc increment
         self.mutated_pc = True
