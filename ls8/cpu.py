@@ -13,6 +13,9 @@ PUSH = 0b01000101
 POP = 0b01000110
 CALL = 0b01010000
 RET = 0b00010001
+CMP = 0b10100111
+JNE = 0b01010110
+JEQ = 0b01010101
 
 
 class CPU:
@@ -38,6 +41,9 @@ class CPU:
         self.branchtable[POP] = self.handle_pop
         self.branchtable[CALL] = self.handle_call
         self.branchtable[RET] = self.handle_ret
+        self.branchtable[CMP] = self.handle_cmp
+        self.branchtable[JNE] = self.handle_jne
+        self.branchtable[JEQ] = self.handle_jeq
 
     def load(self):
         """Load a program into memory."""
@@ -97,15 +103,10 @@ class CPU:
     def handle_jeq(self, a):
         if self.E == 1:
             self.handle_jmp(a)
-            self.mutated_pc = True
 
     def handle_jne(self, a):
         if self.E == 0:
             self.handle_jmp(a)
-            self.mutated_pc = True
-
-        # prevent auto pc increment
-        self.mutated_pc = True
 
     def handle_call(self, a):
         # push next instruction on stack to return to
